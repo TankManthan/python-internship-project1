@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Collaborative Drawing (FastAPI + WebSocket)</title>
+    <style>
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            background: #f4f4f4;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100vh;
+            background: #ffffff;
+            box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.05);
+            touch-action: none;
+        }
+
+        .toolbar {
+            position: fixed;
+            left: 10px;
+            top: 5px;
+            width: 220px;
+            background: #ffffff;
+            padding: 15px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            z-index: 1000;
+            user-select: none;
+        }
+
+        .toolbar h3 {
+            margin-top: 0;
+            font-size: 1.2em;
+            color: #333;
+            text-align: center;
+        }
+
+        .toolbar label,
+        .toolbar select,
+        .toolbar button {
+            display: block;
+            margin: 8px 0;
+            width: 100%;
+        }
+
+        .toolbar input[type="range"] {
+            width: 100%;
+        }
+
+        .toolbar button {
+            padding: 8px;
+            border: none;
+            border-radius: 6px;
+            background: #007bff;
+            color: white;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s, transform 0.1s;
+        }
+
+        .toolbar button:hover {
+            background: #0056b3;
+            transform: translateY(-2px);
+        }
+
+        .toolbar button:active {
+            transform: translateY(1px);
+        }
+
+        .toolbar .primary-btn {
+            background: #28a745;
+        }
+
+        .toolbar .primary-btn:hover {
+            background: #1e7e34;
+        }
+
+        .toolbar hr {
+            margin: 12px 0;
+            border: none;
+            border-top: 1px solid #ddd;
+        }
+
+        button.active {
+            background-color: #e4ecf5;
+            color: rgb(120, 120, 238);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="toolbar">
+        <h3>Tools</h3>
+        <button id="clear" style="width: 47%;display: inline;">Clear</button>
+        <button id="aiBtn" class="primary-btn" style="width: 47%;display: inline;">AI Clean</button>
+        <button id="saveBtn" style="width: 47%;display: inline;">Save</button>
+
+        <hr>
+        <label><b>Adjustment:</b></label>
+        <label>Color: <input id="color" type="color" value="#000000"></label>
+        <label>Width: <input id="width" style="width: 70%;" type="range" min="1" max="40" value="3"></label>
+
+        <hr>
+
+        <label><b>Shapes:</b><br>
+            <button id="pencilBtn" class="active" style="width: 47%;display: inline;">Pencil</button>
+            <button id="lineBtn" style="width: 47%;display: inline;">Line</button>
+            <button id="rectBtn" style="width: 47%;display: inline;">Rectangle</button>
+            <button id="circleBtn" style="width: 47%;display: inline;">Circle</button>
+            <button id="arrowBtn" style="width: 47%;display: inline;">Arrow</button>
+            <!-- <button id="" disabled style="background-color: grey;color: white;">More can add</button> -->
+        </label>
+
+        <hr>
+        <label><b>Upload image:</b></label>
+        <input type="file" id="fileInput" accept="image/*">
+        <button id="uploadBtn">Upload & Interpret</button>
+
+    </div>
+    <canvas id="c"></canvas>
+    <div id="svgPreview"></div>
+    <script src="/static/app.js"></script>
+</body>
+
+</html>
