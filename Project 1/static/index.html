@@ -4,129 +4,767 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Collaborative Drawing (FastAPI + WebSocket)</title>
+    <title>Sketchboard — AI-Assisted Collaborative Diagramming</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
     <style>
+        :root {
+            --ink: #16181d;
+            --muted: #6b7280;
+            --faint: #9aa1ac;
+            --surface: #ffffff;
+            --panel-bg: #fbfbfc;
+            --line: #e5e7eb;
+            --accent: #4338ca;
+            --accent-hover: #362da3;
+            --accent-soft: #eef0fd;
+            --danger: #dc2626;
+            --radius: 10px;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
         html,
         body {
             height: 100%;
             margin: 0;
-            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-            background: #f4f4f4;
+            font-family: "Inter", "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            color: var(--ink);
+            background: #ffffff;
+            -webkit-font-smoothing: antialiased;
         }
 
         canvas {
             display: block;
             width: 100%;
             height: 100vh;
-            background: #ffffff;
-            box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.05);
+            background-color: #fdfdfe;
+            background-image:
+                linear-gradient(rgba(67, 56, 202, 0.07) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(67, 56, 202, 0.07) 1px, transparent 1px),
+                linear-gradient(rgba(67, 56, 202, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(67, 56, 202, 0.03) 1px, transparent 1px);
+            background-size: 96px 96px, 96px 96px, 24px 24px, 24px 24px;
+            background-position: -1px -1px;
             touch-action: none;
         }
 
+        /* ---------- Top bar ---------- */
+        .topbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 52px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            pointer-events: none;
+            z-index: 999;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+            font-size: 14.5px;
+            color: var(--ink);
+            pointer-events: auto;
+        }
+
+        .brand .mark {
+            width: 22px;
+            height: 22px;
+            border-radius: 6px;
+            background: var(--accent);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-size: 12px;
+        }
+
+        .brand .sub {
+            color: var(--faint);
+            font-weight: 400;
+            font-size: 12.5px;
+            margin-left: 4px;
+        }
+
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12.5px;
+            color: var(--muted);
+            background: var(--surface);
+            border: 1px solid var(--line);
+            padding: 5px 12px;
+            border-radius: 999px;
+            pointer-events: auto;
+        }
+
+        .status .dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--faint);
+            transition: background 0.2s;
+        }
+
+        .status.online .dot {
+            background: #16a34a;
+        }
+
+        .status.offline .dot {
+            background: var(--danger);
+        }
+
+        .right-cluster {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            pointer-events: auto;
+        }
+
+        .user-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12.5px;
+            color: var(--ink);
+            background: var(--surface);
+            border: 1px solid var(--line);
+            padding: 5px 12px;
+            border-radius: 999px;
+        }
+
+        .logout-btn {
+            appearance: none;
+            border: 1px solid var(--line);
+            background: var(--surface);
+            color: var(--muted);
+            font: inherit;
+            font-size: 12.5px;
+            padding: 5px 12px;
+            border-radius: 999px;
+            cursor: pointer;
+        }
+
+        .logout-btn:hover {
+            background: #f4f4f6;
+            color: var(--ink);
+        }
+
+        /* ---------- Toolbar panel ---------- */
         .toolbar {
             position: fixed;
-            left: 10px;
-            top: 5px;
-            width: 220px;
-            background: #ffffff;
-            padding: 15px;
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            left: 16px;
+            top: 68px;
+            width: 232px;
+            background: var(--panel-bg);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 8px 24px rgba(16, 24, 40, 0.06);
             z-index: 1000;
             user-select: none;
+            overflow: hidden;
+            max-height: calc(100vh - 84px);
+            overflow-y: auto;
+            transform: translateX(-140%);
+            opacity: 0;
+            pointer-events: none;
+            transition: transform 0.22s ease, opacity 0.22s ease;
         }
 
-        .toolbar h3 {
-            margin-top: 0;
-            font-size: 1.2em;
-            color: #333;
-            text-align: center;
+        .toolbar.open {
+            transform: translateX(0);
+            opacity: 1;
+            pointer-events: auto;
         }
 
-        .toolbar label,
-        .toolbar select,
-        .toolbar button {
-            display: block;
-            margin: 8px 0;
-            width: 100%;
-        }
-
-        .toolbar input[type="range"] {
-            width: 100%;
-        }
-
-        .toolbar button {
-            padding: 8px;
+        /* ---------- Board toggle button ---------- */
+        .board-fab {
+            position: fixed;
+            top: 68px;
+            left: 16px;
+            width: 44px;
+            height: 44px;
+            border-radius: 10px;
+            background: var(--accent);
+            color: #fff;
             border: none;
-            border-radius: 6px;
-            background: #007bff;
-            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
             cursor: pointer;
-            font-weight: bold;
-            transition: background 0.2s, transform 0.1s;
+            z-index: 1001;
+            box-shadow: 0 4px 14px rgba(67, 56, 202, 0.32);
+            transition: background 0.15s, transform 0.15s;
         }
 
-        .toolbar button:hover {
-            background: #0056b3;
-            transform: translateY(-2px);
+        .board-fab:hover {
+            background: var(--accent-hover);
         }
 
-        .toolbar button:active {
+        .board-fab:active {
             transform: translateY(1px);
         }
 
-        .toolbar .primary-btn {
-            background: #28a745;
+        .section {
+            padding: 14px 14px 12px;
         }
 
-        .toolbar .primary-btn:hover {
-            background: #1e7e34;
+        .section+.section {
+            border-top: 1px solid var(--line);
         }
 
-        .toolbar hr {
-            margin: 12px 0;
+        .section-label {
+            font-size: 11.5px;
+            font-weight: 600;
+            color: var(--faint);
+            margin: 0 0 8px 2px;
+        }
+
+        .row {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn {
+            appearance: none;
+            border: 1px solid var(--line);
+            background: var(--surface);
+            color: var(--ink);
+            font: inherit;
+            font-size: 13px;
+            font-weight: 500;
+            border-radius: 8px;
+            padding: 8px 10px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            transition: background 0.12s, border-color 0.12s, transform 0.06s;
+            flex: 1;
+        }
+
+        .btn:hover {
+            background: #f4f4f6;
+            border-color: #d7d9de;
+        }
+
+        .btn:active {
+            transform: translateY(1px);
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: #fff;
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-hover);
+            border-color: var(--accent-hover);
+        }
+
+        .btn-ghost {
+            background: transparent;
+        }
+
+        /* Shape tool segmented row */
+        .tool-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 6px;
+        }
+
+        .tool-btn {
+            appearance: none;
+            border: 1px solid var(--line);
+            background: var(--surface);
+            color: var(--muted);
+            border-radius: 8px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 15px;
+            cursor: pointer;
+            transition: background 0.12s, color 0.12s, border-color 0.12s;
+        }
+
+        .tool-btn:hover {
+            border-color: #d7d9de;
+            color: var(--ink);
+        }
+
+        .tool-btn.active {
+            background: var(--accent-soft);
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        /* Adjustment controls */
+        .field {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .field:last-child {
+            margin-bottom: 0;
+        }
+
+        .field-label {
+            font-size: 12.5px;
+            color: var(--muted);
+            white-space: nowrap;
+        }
+
+        input[type="color"] {
+            -webkit-appearance: none;
+            width: 30px;
+            height: 30px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 0;
+            cursor: pointer;
+            background: none;
+        }
+
+        input[type="color"]::-webkit-color-swatch-wrapper {
+            padding: 3px;
+        }
+
+        input[type="color"]::-webkit-color-swatch {
             border: none;
-            border-top: 1px solid #ddd;
+            border-radius: 5px;
         }
 
-        button.active {
-            background-color: #e4ecf5;
-            color: rgb(120, 120, 238);
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 120px;
+            height: 4px;
+            border-radius: 2px;
+            background: var(--line);
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            background: var(--accent);
+            cursor: pointer;
+            border: 2px solid #fff;
+            box-shadow: 0 0 0 1px var(--accent);
+        }
+
+        select {
+            width: 100%;
+            font: inherit;
+            font-size: 13px;
+            padding: 7px 10px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: var(--surface);
+            color: var(--ink);
+            cursor: pointer;
+        }
+
+        .file-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        input[type="file"] {
+            font-size: 12px;
+            flex: 1;
+            min-width: 0;
+        }
+
+        /* Tooltip via title attribute is native; add subtle affordance */
+        [title] {
+            position: relative;
+        }
+
+        /* ---------- Emoji modal grid ---------- */
+        #emojiGrid .emoji-btn {
+            font-size: 22px;
+            height: 48px;
+        }
+
+        @media (max-width: 575.98px) {
+            .toolbar {
+                left: 8px;
+                right: 8px;
+                width: auto;
+                top: 60px;
+                max-height: calc(100vh - 76px);
+            }
+
+            .board-fab {
+                left: 10px;
+                top: 60px;
+            }
+
+            #svgPreview {
+                display: none;
+            }
+        }
+
+        #svgPreview {
+            display: none;
+        }
+
+        /* ---------- Chat FAB + panel ---------- */
+        .chat-fab {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 54px;
+            height: 54px;
+            border-radius: 50%;
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            box-shadow: 0 4px 14px rgba(67, 56, 202, 0.35);
+            font-size: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 1100;
+            transition: transform 0.15s, background 0.15s;
+        }
+
+        .chat-fab:hover {
+            background: var(--accent-hover);
+            transform: scale(1.05);
+        }
+
+        .chat-badge {
+            position: absolute;
+            top: -4px;
+            right: -4px;
+            background: var(--danger);
+            color: #fff;
+            font-size: 11px;
+            font-weight: 600;
+            min-width: 18px;
+            height: 18px;
+            border-radius: 999px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 4px;
+        }
+
+        .chat-panel {
+            position: fixed;
+            bottom: 88px;
+            right: 20px;
+            width: 320px;
+            max-width: calc(100vw - 24px);
+            height: 440px;
+            max-height: calc(100vh - 120px);
+            background: var(--surface);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            box-shadow: 0 8px 30px rgba(16, 24, 40, 0.18);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            z-index: 1099;
+            opacity: 0;
+            transform: translateY(12px) scale(0.98);
+            pointer-events: none;
+            transition: opacity 0.15s ease, transform 0.15s ease;
+        }
+
+        .chat-panel.open {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+            pointer-events: auto;
+        }
+
+        .chat-panel-header {
+            background: var(--accent);
+            color: #fff;
+            padding: 10px 14px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-weight: 600;
+            font-size: 14px;
+            flex: 0 0 auto;
+        }
+
+        .chat-panel-header .btn-close {
+            filter: invert(1) grayscale(1) brightness(2);
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            background: var(--panel-bg);
+        }
+
+        .chat-msg {
+            max-width: 82%;
+            padding: 7px 11px;
+            border-radius: 12px;
+            font-size: 13.5px;
+            line-height: 1.35;
+            word-wrap: break-word;
+        }
+
+        .chat-msg .chat-msg-user {
+            display: block;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--faint);
+            margin-bottom: 2px;
+        }
+
+        .chat-msg.mine {
+            align-self: flex-end;
+            background: var(--accent);
+            color: #fff;
+            border-bottom-right-radius: 3px;
+        }
+
+        .chat-msg.mine .chat-msg-user {
+            color: rgba(255, 255, 255, 0.75);
+        }
+
+        .chat-msg.theirs {
+            align-self: flex-start;
+            background: #fff;
+            border: 1px solid var(--line);
+            color: var(--ink);
+            border-bottom-left-radius: 3px;
+        }
+
+        .chat-msg.system {
+            align-self: center;
+            background: transparent;
+            color: var(--faint);
+            font-size: 11.5px;
+            font-style: italic;
+        }
+
+        .chat-input-row {
+            display: flex;
+            gap: 8px;
+            padding: 10px;
+            border-top: 1px solid var(--line);
+            background: var(--surface);
+            flex: 0 0 auto;
+        }
+
+        .chat-input-row .form-control {
+            font-size: 13.5px;
+        }
+
+        .chat-send-btn {
+            flex: 0 0 auto;
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+        }
+
+        @media (max-width: 575.98px) {
+            .chat-panel {
+                right: 12px;
+                left: 12px;
+                width: auto;
+                bottom: 80px;
+            }
+
+            .chat-fab {
+                right: 16px;
+                bottom: 16px;
+            }
         }
     </style>
 </head>
 
 <body>
-    <div class="toolbar">
-        <h3>Tools</h3>
-        <button id="clear" style="width: 47%;display: inline;">Clear</button>
-        <button id="aiBtn" class="primary-btn" style="width: 47%;display: inline;">AI Clean</button>
-        <button id="saveBtn" style="width: 47%;display: inline;">Save</button>
 
-        <hr>
-        <label><b>Adjustment:</b></label>
-        <label>Color: <input id="color" type="color" value="#000000"></label>
-        <label>Width: <input id="width" style="width: 70%;" type="range" min="1" max="40" value="3"></label>
-
-        <hr>
-
-        <label><b>Shapes:</b><br>
-            <button id="pencilBtn" class="active" style="width: 47%;display: inline;">Pencil</button>
-            <button id="lineBtn" style="width: 47%;display: inline;">Line</button>
-            <button id="rectBtn" style="width: 47%;display: inline;">Rectangle</button>
-            <button id="circleBtn" style="width: 47%;display: inline;">Circle</button>
-            <button id="arrowBtn" style="width: 47%;display: inline;">Arrow</button>
-            <!-- <button id="" disabled style="background-color: grey;color: white;">More can add</button> -->
-        </label>
-
-        <hr>
-        <label><b>Upload image:</b></label>
-        <input type="file" id="fileInput" accept="image/*">
-        <button id="uploadBtn">Upload & Interpret</button>
-
+    <div class="topbar">
+        <div class="brand">
+            <span class="mark"><i class="bi bi-diagram-3-fill"></i></span>
+            Sketchboard
+            <span class="sub">collaborative diagramming</span>
+        </div>
+        <div class="right-cluster">
+            <div class="status" id="connStatus">
+                <span class="dot"></span>
+                <span id="connStatusText">Connecting…</span>
+            </div>
+            <div class="status" id="peopleBadge" title="">
+                <i class="bi bi-people-fill"></i>
+                <span id="peopleCount">—</span>
+            </div>
+            <div class="user-badge" id="userBadge" style="display:none;">
+                <i class="bi bi-person-circle"></i>
+                <span id="usernameLabel"></span>
+            </div>
+            <button class="logout-btn" id="logoutBtn"><i class="bi bi-box-arrow-right"></i> Log out</button>
+        </div>
     </div>
+
+    <button id="boardToggleBtn" class="board-fab" title="Open board tools">
+        <i class="bi bi-list"></i>
+    </button>
+
+    <div class="toolbar" id="toolbarPanel">
+        <div class="section">
+            <div class="section-label">Board</div>
+            <div class="row">
+                <button id="clear" class="btn" title="Clear the canvas"><i class="bi bi-eraser"></i> Clear</button>
+                <button id="aiBtn" class="btn btn-primary" title="Clean up drawing with AI"><i class="bi bi-stars"></i>
+                    AI Clean</button>
+            </div>
+            <div class="row" style="margin-top:8px;">
+                <button id="saveBtn" class="btn" title="Save this diagram"><i class="bi bi-save2"></i> Save</button>
+            </div>
+            <div class="row" style="margin-top:8px;">
+                <button id="undoBtn" class="btn" title="Undo (Ctrl+Z)"><i class="bi bi-arrow-counterclockwise"></i>
+                    Undo</button>
+                <button id="redoBtn" class="btn" title="Redo (Ctrl+Y)"><i class="bi bi-arrow-clockwise"></i>
+                    Redo</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-label">Diagrams</div>
+            <select id="diagramList"></select>
+            <div class="row" style="margin-top:8px;">
+                <button id="loadBtn" class="btn"><i class="bi bi-folder2-open"></i> Load</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-label">Style</div>
+            <div class="field">
+                <span class="field-label">Color</span>
+                <input id="color" type="color" value="#000000">
+            </div>
+            <div class="field">
+                <span class="field-label">Width</span>
+                <input id="width" type="range" min="1" max="40" value="3">
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-label">Shapes</div>
+            <div class="tool-grid">
+                <button id="pencilBtn" class="tool-btn active" title="Pencil"><i class="bi bi-pencil-fill"></i></button>
+                <button id="lineBtn" class="tool-btn" title="Line"><i class="bi bi-dash-lg"></i></button>
+                <button id="rectBtn" class="tool-btn" title="Rectangle"><i class="bi bi-square"></i></button>
+                <button id="circleBtn" class="tool-btn" title="Circle"><i class="bi bi-circle"></i></button>
+                <button id="arrowBtn" class="tool-btn" title="Arrow"><i class="bi bi-arrow-right"></i></button>
+                <button id="selectBtn" class="tool-btn" title="Select &amp; move"><i class="bi bi-cursor"></i></button>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-label">Emoji</div>
+            <button type="button" class="btn btn-primary w-100" data-bs-toggle="modal" data-bs-target="#emojiModal"
+                title="Pick an emoji to stamp on the board">
+                <i class="bi bi-emoji-smile"></i> Open Emoji Picker
+            </button>
+        </div>
+
+        <div class="section">
+            <div class="section-label">Upload image</div>
+            <div class="file-row">
+                <input type="file" id="fileInput" accept="image/*">
+                <button id="uploadBtn" class="btn btn-ghost" style="flex:0 0 auto; padding:8px 12px;"
+                    title="Interpret uploaded image"><i class="bi bi-magic"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ---------- Emoji picker modal ---------- -->
+    <div class="modal fade" id="emojiModal" tabindex="-1" aria-labelledby="emojiModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="emojiModalLabel"><i class="bi bi-emoji-smile"></i> Pick an emoji</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row row-cols-4 row-cols-sm-6 g-2" id="emojiGrid">
+                        <div class="col"><button class="tool-btn emoji-btn w-100" data-emoji="😀">😀</button></div>
+                        <div class="col"><button class="tool-btn emoji-btn w-100" data-emoji="👍">👍</button></div>
+                        <div class="col"><button class="tool-btn emoji-btn w-100" data-emoji="⭐">⭐</button></div>
+                        <div class="col"><button class="tool-btn emoji-btn w-100" data-emoji="❤️">❤️</button></div>
+                        <div class="col"><button class="tool-btn emoji-btn w-100" data-emoji="🔥">🔥</button></div>
+                        <div class="col"><button class="tool-btn emoji-btn w-100" data-emoji="✅">✅</button></div>
+                        <div class="col"><button class="tool-btn emoji-btn w-100" data-emoji="❌">❌</button></div>
+                        <div class="col"><button class="tool-btn emoji-btn w-100" data-emoji="⚠️">⚠️</button></div>
+                        <div class="col"><button class="tool-btn emoji-btn w-100" data-emoji="💡">💡</button></div>
+                        <div class="col"><button class="tool-btn emoji-btn w-100" data-emoji="🎉">🎉</button></div>
+                        <div class="col"><button class="tool-btn emoji-btn w-100" data-emoji="😂">😂</button></div>
+                        <div class="col"><button class="tool-btn emoji-btn w-100" data-emoji="🚀">🚀</button></div>
+                    </div>
+                    <hr>
+                    <label for="customEmoji" class="form-label small text-muted">Custom emoji</label>
+                    <input id="customEmoji" type="text" maxlength="4" class="form-control text-center"
+                        placeholder="✍️ paste any emoji">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ---------- Chat ---------- -->
+    <button id="chatToggleBtn" class="chat-fab" title="Open chat">
+        <i class="bi bi-chat-dots-fill"></i>
+        <span id="chatUnreadBadge" class="chat-badge d-none">0</span>
+    </button>
+
+    <div id="chatPanel" class="chat-panel">
+        <div class="chat-panel-header">
+            <span><i class="bi bi-chat-dots-fill"></i> Chat</span>
+            <button id="chatCloseBtn" type="button" class="btn-close" aria-label="Close"></button>
+        </div>
+        <div id="chatMessages" class="chat-messages"></div>
+        <form id="chatForm" class="chat-input-row">
+            <input id="chatInput" type="text" class="form-control" placeholder="Type a message…" autocomplete="off">
+            <button type="submit" class="btn btn-primary chat-send-btn" title="Send"><i
+                    class="bi bi-send-fill"></i></button>
+        </form>
+    </div>
+
     <canvas id="c"></canvas>
     <div id="svgPreview"></div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="/static/app.js"></script>
 </body>
 

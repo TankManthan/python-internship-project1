@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sign up — Sketchboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="/static/auth.css">
+</head>
+
+<body>
+    <div class="page">
+        <div class="card">
+            <div class="brand">
+                <span class="mark"><i class="bi bi-diagram-3-fill"></i></span>
+                Sketchboard
+            </div>
+            <h1>Create your account</h1>
+            <p class="lead">Set a username and password to start drawing.</p>
+
+            <div class="error-box" id="errorBox"></div>
+
+            <form id="signupForm">
+                <div class="field">
+                    <label for="username">Username</label>
+                    <input id="username" name="username" type="text" autocomplete="username" required>
+                </div>
+                <div class="field">
+                    <label for="password">Password</label>
+                    <input id="password" name="password" type="password" autocomplete="new-password" required
+                        minlength="6">
+                </div>
+                <div class="field">
+                    <label for="confirmPassword">Confirm password</label>
+                    <input id="confirmPassword" name="confirmPassword" type="password" autocomplete="new-password"
+                        required minlength="6">
+                </div>
+                <button type="submit" class="btn-submit" id="submitBtn">Sign up</button>
+            </form>
+
+            <div class="switch">
+                Already have an account? <a href="/login">Log in</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('signupForm');
+        const errorBox = document.getElementById('errorBox');
+        const submitBtn = document.getElementById('submitBtn');
+
+        function showError(msg) {
+            errorBox.textContent = msg;
+            errorBox.classList.add('show');
+        }
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            errorBox.classList.remove('show');
+
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+
+            if (password !== confirmPassword) {
+                showError('Passwords do not match');
+                return;
+            }
+
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Creating account…';
+
+            try {
+                const resp = await fetch('/signup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await resp.json();
+                if (!resp.ok) throw new Error(data.detail || 'Signup failed');
+                window.location.href = '/';
+            } catch (err) {
+                showError(err.message);
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Sign up';
+            }
+        });
+    </script>
+</body>
+
+</html>
